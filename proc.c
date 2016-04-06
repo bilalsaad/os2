@@ -55,18 +55,31 @@ allocproc(void)
 {
   struct proc *p;
   char *sp;
-
+  int expected;
+/*
   acquire(&ptable.lock);
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
     if(p->state == UNUSED)
       goto found;
   release(&ptable.lock);
   return 0;
+*/
+  
+  do {
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+      if(UNUSED == p->state) { // found an unused fellow.
+        expected = UNUSED;
+        break;
+      }
+    if(NPROC + ptable.proc == p) {
+      return 0;
+    }
+  } while(!cas(&p->state, expected, EMBRYO));
 
-found:
+/*found:
   p->state = EMBRYO;  
   release(&ptable.lock);
-
+*/
   p->pid = allocpid();
 
   // Allocate kernel stack.
