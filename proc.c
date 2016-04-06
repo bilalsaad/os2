@@ -27,13 +27,23 @@ pinit(void)
 }
 
 int 
-allocpid(void) 
+allocpid_old(void) 
 {
   int pid;
   acquire(&ptable.lock);
   pid = nextpid++;
   release(&ptable.lock);
   return pid;
+}
+
+int
+allocpid(void) 
+{
+  int pid;
+  do {
+    pid = nextpid;
+  } while(!cas(&nextpid, pid, pid + 1));
+  return pid+1;
 }
 //PAGEBREAK: 32
 // Look in the process table for an UNUSED proc.
