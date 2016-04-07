@@ -1,3 +1,4 @@
+#include "types.h"
 // Segments in proc->gdt.
 #define NSEGS     7
 
@@ -49,6 +50,35 @@ struct context {
   uint eip;
 };
 
+// Concurrent stack for storing pending signals.
+#define CSTACK_SIZE 10
+#define CSTACKFRAME_USED 1
+#define CSTACKFRAME_UNUSED 0
+
+// defines an element of the concurrent stack.
+struct cstackframe {
+  int sender_pid;
+  int recepient_pid;
+  int value;
+  int used;
+  struct cstackframe *next;
+};
+
+// defines a concurrent stack.
+struct cstack {
+  struct cstackframe frames[CSTACK_SIZE];
+  struct cstackframe* head;
+};
+
+// adds a new frame to the cstack which is initialized with values
+// sender_pid, recepient_pid and value, returns 1 on ssuccess and 0 
+// if the stack is full
+int push(struct cstack* cstack, int sender_pid, int recepient_pid, int value);
+
+// removes and returns an element from the head of the given cstack
+struct cstackframe* pop(struct cstack *cstack);
+
+// End of concrurrent stack.
 enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
 // Per-process state
@@ -66,6 +96,8 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
+  sig_handler sig_handler;     // Current signal handler.
+  struct cstack cstack;               // Pending signals.
 };
 
 // Process memory is laid out contiguously, low addresses first:

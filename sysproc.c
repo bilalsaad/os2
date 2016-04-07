@@ -77,6 +77,33 @@ sys_sleep(void)
   return 0;
 }
 
+// SIGNAL SYSTEM CALLS
+int 
+sys_sigset(void)
+{
+  return -1;
+}
+
+int
+sys_sigsend(void)
+{ 
+  return 0;
+}
+
+int 
+sys_sigret(void)
+{
+  return 0;
+}
+
+int 
+sys_sigpause(void)
+{
+  return 0;
+}
+
+// SLLAC METSYS LANGIS
+
 // return how many clock tick interrupts have occurred
 // since start.
 int

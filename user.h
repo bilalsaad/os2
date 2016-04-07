@@ -1,5 +1,6 @@
 struct stat;
 struct rtcdate;
+typedef void (*sig_handler)(int pid, int value);
 
 // system calls
 int fork(void);
@@ -23,6 +24,19 @@ int getpid(void);
 char* sbrk(int);
 int sleep(int);
 int uptime(void);
+/* ---------------------------- SIGNAL SYSTEM CALLS ------------- */ 
+// sets the signal handler to be called when signals are sent 
+sig_handler sigset(sig_handler);
+
+// sends a signal with the given value to a proces with pid dest_pid
+int sigsend(int dest_pid, int value);
+
+// complete the signal handling context (should not be called explicitly)
+void sigret(void);
+
+// suspends the process until a new signal is received
+int sigpause(void);
+
 
 // ulib.c
 int stat(char*, struct stat*);

@@ -7,6 +7,7 @@
 #include "x86.h"
 #include "elf.h"
 
+#define DEFAULT_HANDLER (sig_handler) -1
 int
 exec(char *path, char **argv)
 {
@@ -92,6 +93,8 @@ exec(char *path, char **argv)
   proc->sz = sz;
   proc->tf->eip = elf.entry;  // main
   proc->tf->esp = sp;
+  // CODE FOR SIGNALS - the exec call should reset the handler to be default -1
+  proc->sig_handler = DEFAULT_HANDLER;
   switchuvm(proc);
   freevm(oldpgdir);
   return 0;

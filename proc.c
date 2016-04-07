@@ -178,6 +178,8 @@ fork(void)
   np->sz = proc->sz;
   np->parent = proc;
   *np->tf = *proc->tf;
+  // CHANGE FOR SIGNAL --------------------------
+  np->sig_handler = proc->sig_handler; // fork copies the parents sig handler
 
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;
@@ -515,3 +517,64 @@ procdump(void)
     cprintf("\n");
   }
 }
+
+// SIGNALS ----
+// CONCURRENT STACK FUNCTIONS
+int push(struct cstack *cstack, int sender_pid, int recepient_pid, int value) {
+  struct cstackframe* old;
+  if (cstack->head == cstack->frames + CSTACK_SIZE) // stack is full
+    return 0; // FAILURE 
+
+  do {
+     old = cstack->head;
+  } while(!cas((int *)&cstack->head, (int) old, (int)old+1));
+
+  // increment head - dear god I hope this is thread safe.
+  old->sender_pid = sender_pid;
+  old->recepient_pid = recepient_pid;
+  old->value = value;
+  old->used = CSTACKFRAME_USED;
+  // not sure what to do about the next field...
+  return 1; // SUCCESS
+}
+
+struct cstackframe *pop(struct cstack *cstack) {
+  struct cstackframe* old;
+  if (cstack->head == cstack->frames) // empty stack
+    return 0; // Failure.
+
+  do {
+    old = cstack->head;
+  } while(!cas((int *) &cstack->head, (int) old, (int) old - 1));
+
+  // I am quite sure that this is not thread safe... nope nope nope nope
+  // maybe I need to copy something on the stack, and swap iff cas
+  // but for the mean time, lets try this
+
+  // Ok this seems very very very very very very wrong
+  
+  return old; // this is very wrong!
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
