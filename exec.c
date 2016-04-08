@@ -7,7 +7,6 @@
 #include "x86.h"
 #include "elf.h"
 
-#define DEFAULT_HANDLER (sig_handler) -1
 int
 exec(char *path, char **argv)
 {

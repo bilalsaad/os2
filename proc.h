@@ -80,8 +80,21 @@ int push(struct cstack* cstack, int sender_pid, int recepient_pid, int value);
 struct cstackframe* pop(struct cstack *cstack);
 
 // End of concrurrent stack.
-enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
+// -------------- CPU state for SIGNAL handling ---------------------------
+struct cpu_state {
+  // Registers - Hope I have them all here.
+  uint edi;
+  uint esi;
+  uint ebp;
+  uint ebx;
+  uint edx;
+  uint ecx;
+  uint eax;
+};
+// ------------------------------------------------------------------------
+enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
+#define DEFAULT_HANDLER (sig_handler) -1
 // Per-process state
 struct proc {
   uint sz;                     // Size of process memory (bytes)
@@ -97,8 +110,11 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
+  // ----------------------------- SIGNALS STUFF ------------------------------
   sig_handler sig_handler;     // Current signal handler.
-  struct cstack cstack;               // Pending signals.
+  struct cstack cstack;        // Pending signals.
+  //struct cpu_state back_up_tf; // Used for saving cpu state before calling a 
+                               // signal handler.
 };
 
 // Process memory is laid out contiguously, low addresses first:

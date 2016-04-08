@@ -322,6 +322,7 @@ scheduler(void)
       if(p->state != RUNNABLE)
         continue;
 
+      // Should we handler signals here?
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
       // before jumping back to us.
@@ -494,7 +495,6 @@ procdump(void)
   struct proc *p;
   char *state;
   uint pc[10];
-  
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if(p->state == UNUSED)
       continue;
@@ -546,10 +546,10 @@ struct cstackframe *pop(struct cstack *cstack) {
   struct cstackframe* old;
   do {
     old = cstack->head;
-    if(old == 0) // Empty stack.
+    if(old == EMPTY_STACK){ // Empty stack.
       return EMPTY_STACK;
+    }
   } while(!cas((int *) &cstack->head, (int) old, (int) (cstack->head->next) ));
-
   return old; 
 }
 
@@ -596,4 +596,22 @@ int sigsend(int dest_pid, int value) {
 
 int sigpause() {
   return 0; // Not sure what to do here...
+}
+
+// Here we must restore the previous cpu state after the sig handler..
+void sigret() {
+}
+// should do something with pending signals!!! 
+int handle_signals() {
+  struct cstackframe* curr = 0;
+  int value, sender_pid;
+  if(proc != 0) {
+    curr = pop(&proc->cstack);
+    if(curr == EMPTY_STACK || proc->sig_handler == DEFAULT_HANDLER)
+      return 0;
+    value = curr->value;
+    sender_pid = curr->sender_pid;
+    curr->used = CSTACKFRAME_UNUSED;
+    
+  }
 }

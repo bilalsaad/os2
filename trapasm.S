@@ -26,6 +26,10 @@ alltraps:
   # Return falls through to trapret...
 .globl trapret
 trapret:
+  # Maybe we can call a cool function here that checks the stuff?
+  pushal
+  call handle_signals
+  popal
   popal
   popl %gs
   popl %fs
