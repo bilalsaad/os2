@@ -1,3 +1,5 @@
+#include "types.h"
+
 struct buf;
 struct context;
 struct file;
@@ -118,6 +120,11 @@ void            userinit(void);
 int             wait(void);
 void            wakeup(void*);
 void            yield(void);
+// SIGNAL HELPRS IN PROC.C
+sig_handler     sigset(sig_handler);
+int             sigsend(int, int);
+void            sigret(void);
+int             sigpause(void);
 
 // swtch.S
 void            swtch(struct context**, struct context*);

@@ -54,6 +54,7 @@ struct context {
 #define CSTACK_SIZE 10
 #define CSTACKFRAME_USED 1
 #define CSTACKFRAME_UNUSED 0
+#define EMPTY_STACK 0
 
 // defines an element of the concurrent stack.
 struct cstackframe {

@@ -81,13 +81,22 @@ sys_sleep(void)
 int 
 sys_sigset(void)
 {
-  return -1;
+  sig_handler handler;
+
+  if(argptr(0, (char**) &handler, sizeof(handler)) < 0)
+    return 0; // Error I suppose.
+  return (int) (sigset(handler));
 }
 
 int
 sys_sigsend(void)
 { 
-  return 0;
+  int dest_pid, value;
+  if(argint(0, &dest_pid) < 0 ||
+      argint(1, &value) < 0 )
+    return 0; // Error I suppose.
+
+  return sigsend(dest_pid, value);
 }
 
 int 
@@ -99,7 +108,7 @@ sys_sigret(void)
 int 
 sys_sigpause(void)
 {
-  return 0;
+  return sigpause();
 }
 
 // SLLAC METSYS LANGIS

@@ -56,14 +56,7 @@ allocproc(void)
   struct proc *p;
   char *sp;
   int expected;
-/*
-  acquire(&ptable.lock);
-  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
-    if(p->state == UNUSED)
-      goto found;
-  release(&ptable.lock);
-  return 0;
-*/
+  struct cstackframe* cstack_iter;
   
   do {
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
@@ -75,12 +68,13 @@ allocproc(void)
       return 0;
     }
   } while(!cas(&p->state, expected, EMBRYO));
-
-/*found:
-  p->state = EMBRYO;  
-  release(&ptable.lock);
-*/
   p->pid = allocpid();
+  
+  // SIGNALZ -- gettiing the cstack up and ready.
+  p->cstack.head = EMPTY_STACK;
+  cstack_iter = p->cstack.frames;
+  while(cstack_iter != p->cstack.frames + CSTACK_SIZE)
+    (cstack_iter++)->used = CSTACKFRAME_UNUSED;
 
   // Allocate kernel stack.
   if((p->kstack = kalloc()) == 0){
@@ -520,61 +514,86 @@ procdump(void)
 
 // SIGNALS ----
 // CONCURRENT STACK FUNCTIONS
+
+// Returns a vacant cstackframe from a given cstack - returns 0 if none are
+// vacant;
+struct cstackframe* get_stack_frame(struct cstack*);
+
 int push(struct cstack *cstack, int sender_pid, int recepient_pid, int value) {
-  struct cstackframe* old;
-  if (cstack->head == cstack->frames + CSTACK_SIZE) // stack is full
-    return 0; // FAILURE 
+  struct cstackframe* new_frame;
 
+  // get an empty frame from the cstack -- if none are free return 0;
+  new_frame = get_stack_frame(cstack);
+  if(new_frame == EMPTY_STACK)
+    return 0;
+  
+  // Fill in the new frame.
+  new_frame->sender_pid = sender_pid;
+  new_frame->recepient_pid = recepient_pid;
+  new_frame->value = value;
+  
+  // A CAS loop for adding the new frame to the head of the stack.
+  // We make sure our new_frames next is the old head and that the head does 
+  // change. 
   do {
-     old = cstack->head;
-  } while(!cas((int *)&cstack->head, (int) old, (int)old+1));
+    new_frame->next = cstack->head;
+  } while(!cas((int *)&cstack->head, (int) new_frame->next, (int)new_frame));
 
-  // increment head - dear god I hope this is thread safe.
-  old->sender_pid = sender_pid;
-  old->recepient_pid = recepient_pid;
-  old->value = value;
-  old->used = CSTACKFRAME_USED;
-  // not sure what to do about the next field...
   return 1; // SUCCESS
 }
 
 struct cstackframe *pop(struct cstack *cstack) {
   struct cstackframe* old;
-  if (cstack->head == cstack->frames) // empty stack
-    return 0; // Failure.
-
   do {
     old = cstack->head;
-  } while(!cas((int *) &cstack->head, (int) old, (int) old - 1));
+    if(old == 0) // Empty stack.
+      return EMPTY_STACK;
+  } while(!cas((int *) &cstack->head, (int) old, (int) (cstack->head->next) ));
 
-  // I am quite sure that this is not thread safe... nope nope nope nope
-  // maybe I need to copy something on the stack, and swap iff cas
-  // but for the mean time, lets try this
-
-  // Ok this seems very very very very very very wrong
-  
-  return old; // this is very wrong!
+  return old; 
 }
 
 
 
+struct cstackframe* get_stack_frame(struct cstack* cstack) {
+  struct cstackframe* iter = cstack->frames;
+  do{
+    while(iter < cstack->frames + CSTACK_SIZE)
+      if(CSTACKFRAME_UNUSED == iter->used) { // found one!
+        break;
+      }
+    // out of while.
+      if( CSTACK_SIZE + cstack->frames == iter) // none found
+        return EMPTY_STACK;
+  }while(!cas(&iter->used, CSTACKFRAME_UNUSED, CSTACKFRAME_USED));
 
+  // we caught an unused stack frame!
+  return iter;
+}
 
+// SIGNAL SYSTEM CALLS HELPER FUNCTIONS.
+// ******************************************** 
 
+// sigset. Not sure what to return here.. Maybe int? or IDK
+sig_handler sigset(sig_handler handler) {
+  // could there be a data race here? I don't think so. 
+  sig_handler old = proc->sig_handler;
+  
+  proc->sig_handler = handler;
+  return old; 
+}
 
+// Not sure if I need to synchronize anything here. 
+int sigsend(int dest_pid, int value) {
+  struct proc* p = ptable.proc;
 
+  while(p < ptable.proc + NPROC)
+    if(p->pid == dest_pid)  // Found it.
+      return push(&p->cstack, proc->pid /* sender */, dest_pid, value);
+  // If no such process was found. Well we can always return -1;
+  return -1;
+}
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+int sigpause() {
+  return 0; // Not sure what to do here...
+}
