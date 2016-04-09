@@ -600,18 +600,87 @@ int sigpause() {
 
 // Here we must restore the previous cpu state after the sig handler..
 void sigret() {
+  proc->tf->edi = proc->cpu_state.edi;
+  proc->tf->esi = proc->cpu_state.edi;
+  proc->tf->ebp = proc->cpu_state.edi;
+  proc->tf->ebx = proc->cpu_state.edi;
+  proc->tf->edx = proc->cpu_state.edi;
+  proc->tf->ecx = proc->cpu_state.edi;
+  proc->tf->eax = proc->cpu_state.edi;
+  proc->tf->eip = proc->cpu_state.edi;
+  proc->tf->esp = proc->cpu_state.edi;
 }
+void backup_proc_tf(struct proc*);
+void edit_tf_for_sighandler(struct proc*, int, int);
 // should do something with pending signals!!! 
+// The plan is to now - if proc = zero ret 0-- need to ask if this is possible
+// else if the stack is empty or if that the sig handler is the default one.
+// Just pop the stack and return 0.
+// else <backup the user tf> and return the cstack frame to the assembly fellah
 int handle_signals() {
   struct cstackframe* curr = 0;
-  int value, sender_pid;
   if(proc != 0) {
     curr = pop(&proc->cstack);
     if(curr == EMPTY_STACK || proc->sig_handler == DEFAULT_HANDLER)
       return 0;
-    value = curr->value;
-    sender_pid = curr->sender_pid;
+    // else return curr - and do stuff in assembly?
+    // backup part of tf?
+    backup_proc_tf(proc); 
+    edit_tf_for_sighandler(proc, curr->value, curr->sender_pid);
+    // finished using the frame. free it.
     curr->used = CSTACKFRAME_UNUSED;
-    
+    return 1;
   }
+  return 0; // proc is 0 - not sure what to do here is this a data race?
+}
+
+void backup_proc_tf(struct proc* p) {
+  p->cpu_state.edi = p->tf->edi;
+  p->cpu_state.esi = p->tf->esi;
+  p->cpu_state.ebp = p->tf->ebp;
+  p->cpu_state.ebx = p->tf->ebx;
+  p->cpu_state.edx = p->tf->edx;
+  p->cpu_state.ecx = p->tf->ecx;
+  p->cpu_state.eax = p->tf->eax;
+  p->cpu_state.eip = p->tf->eip;
+  p->cpu_state.esp = p->tf->esp;
+}
+
+extern void sigret_label_start(void);
+extern void sigret_label_end(void);
+void edit_tf_for_sighandler(struct proc* p, int value_arg, int pid_arg) {
+  uint injected_code_size;
+  uint injected_code_address;
+  // we need edit the eip to be the address of the sighandler. 
+  p->tf->eip = (uint) p->sig_handler;
+  // do I need to make room for the return address here? probably
+  // We need to make room for the injected sigret code. fml. 
+  injected_code_size = (&sigret_label_end - &sigret_label_end); 
+
+  // Update the user-esp
+  proc->tf->esp -= injected_code_size;
+  injected_code_size = proc->tf->esp;
+
+  // Move the code onto the stack. 
+  memmove((void *) proc->tf->esp,
+          (const void *) &sigret_label_start, 
+          injected_code_size);
+  // Can we just push the the arguments on the user stack from here? 
+  
+  proc->tf->esp -= 4; // make room for second arg fml
+  memmove((void *) proc->tf->esp,
+      (const void *) &value_arg,
+      4);
+  proc->tf->esp -= 4; // make room for first arg fml
+  memmove((void *) proc->tf->esp,
+      (const void *) &pid_arg,
+      4);
+  proc->tf->esp -= 4; // make room for the return address
+  memmove((void *) proc->tf->esp,
+      (const void *) &injected_code_address,
+      4);
+}
+
+uint get_esp() {
+  return proc->tf->esp;
 }

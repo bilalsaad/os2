@@ -1,4 +1,7 @@
 #include "mmu.h"
+#define SYS_sigret 24
+#define T_SYSCALL 64
+
 
   # vectors.S sends all traps here.
 .globl alltraps
@@ -27,7 +30,7 @@ alltraps:
 .globl trapret
 trapret:
   # Maybe we can call a cool function here that checks the stuff?
-  pushal
+  pushal # so we dont mess with the contents of the registers, bro. 
   call handle_signals
   popal
   popal
@@ -37,3 +40,11 @@ trapret:
   popl %ds
   addl $0x8, %esp  # trapno and errcode
   iret
+
+.globl sigret_label_start
+sigret_label_start:
+  movl $SYS_sigret, %eax;
+  int $T_SYSCALL;
+  ret;
+.globl sigret_label_end
+sigret_label_end:

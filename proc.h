@@ -91,6 +91,8 @@ struct cpu_state {
   uint edx;
   uint ecx;
   uint eax;
+  uint eip;
+  uint esp;
 };
 // ------------------------------------------------------------------------
 enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
@@ -113,7 +115,7 @@ struct proc {
   // ----------------------------- SIGNALS STUFF ------------------------------
   sig_handler sig_handler;     // Current signal handler.
   struct cstack cstack;        // Pending signals.
-  //struct cpu_state back_up_tf; // Used for saving cpu state before calling a 
+  struct cpu_state cpu_state;   // Used for saving cpu state before calling a 
                                // signal handler.
 };
 
