@@ -115,7 +115,7 @@ struct proc {
   // ----------------------------- SIGNALS STUFF ------------------------------
   sig_handler sig_handler;     // Current signal handler.
   struct cstack cstack;        // Pending signals.
-  struct cpu_state cpu_state;   // Used for saving cpu state before calling a 
+  struct cpu_state cpu_state;  // Used for saving cpu state before calling a 
                                // signal handler.
 };
 

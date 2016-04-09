@@ -538,7 +538,7 @@ int push(struct cstack *cstack, int sender_pid, int recepient_pid, int value) {
   do {
     new_frame->next = cstack->head;
   } while(!cas((int *)&cstack->head, (int) new_frame->next, (int)new_frame));
-
+  wakeup1(recepient_pid);
   return 1; // SUCCESS
 }
 
@@ -586,16 +586,32 @@ sig_handler sigset(sig_handler handler) {
 // Not sure if I need to synchronize anything here. 
 int sigsend(int dest_pid, int value) {
   struct proc* p = ptable.proc;
-
-  while(p < ptable.proc + NPROC)
+  while(p < ptable.proc + NPROC) {
     if(p->pid == dest_pid)  // Found it.
       return push(&p->cstack, proc->pid /* sender */, dest_pid, value);
+    ++p;
+  }
   // If no such process was found. Well we can always return -1;
   return -1;
 }
 
 int sigpause() {
-  return 0; // Not sure what to do here...
+  
+  acquire(&ptable.lock);
+  for(;;) {
+    proc->state = SLEEPING;
+    proc->chan = int(proc);
+
+    if(proc->cstack.head != EMPTY_STACK) {
+      proc->state = RUNNING;
+      proc->chan = 0;
+      release(&ptable.lock);
+      return 1;
+    }
+    sched();
+  }
+
+  return 0;
 }
 
 // Here we must restore the previous cpu state after the sig handler..
@@ -603,7 +619,7 @@ void sigret() {
   proc->tf->edi = proc->cpu_state.edi;
   proc->tf->esi = proc->cpu_state.edi;
   proc->tf->ebp = proc->cpu_state.edi;
-  proc->tf->ebx = proc->cpu_state.edi;
+  proc->tf->ebx = proc->cpu_state.edi
   proc->tf->edx = proc->cpu_state.edi;
   proc->tf->ecx = proc->cpu_state.edi;
   proc->tf->eax = proc->cpu_state.edi;
