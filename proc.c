@@ -69,8 +69,10 @@ allocproc(void)
     }
   } while(!cas(&p->state, expected, EMBRYO));
   p->pid = allocpid();
-  
+
+
   // SIGNALZ -- gettiing the cstack up and ready.
+  p->sig_handler = DEFAULT_HANDLER; 
   p->cstack.head = EMPTY_STACK;
   cstack_iter = p->cstack.frames;
   while(cstack_iter != p->cstack.frames + CSTACK_SIZE)
@@ -537,7 +539,7 @@ int push(struct cstack *cstack, int sender_pid, int recepient_pid, int value) {
   // change. 
   do {
     new_frame->next = cstack->head;
-  } while(!cas((int *)&cstack->head, (int) new_frame->next, (int)new_frame));
+  } while(!cas((int *)&cstack->head, (int) new_frame->next, (int) new_frame));
   return 1; // SUCCESS
 }
 
@@ -549,14 +551,6 @@ struct cstackframe *pop(struct cstack *cstack) {
       return EMPTY_STACK;
     }
   } while(!cas((int *) &cstack->head, (int) old, (int) (cstack->head->next)));
-  if(old != EMPTY_STACK) {
-    cprintf("called pop in %d \n", proc->pid);
-    cprintf("pop values %d %d %d \n",
-        old->recepient_pid, old->sender_pid, old->value);
-    cprintf("value of sighandler: %s \n",
-        (proc->sig_handler == DEFAULT_HANDLER) ?
-        "IBRAHIM HOMO" : "2057474250");
-  }
   return old; 
 }
 
@@ -610,7 +604,6 @@ int sigpause() {
     proc->chan = (int) (proc);
 
     if(proc->cstack.head != EMPTY_STACK) {
-      cprintf("fuck you all fuck you all \n");
       proc->state = RUNNING;
       proc->chan = 0;
       release(&ptable.lock);
@@ -624,6 +617,7 @@ int sigpause() {
 
 // Here we must restore the previous cpu state after the sig handler..
 void sigret() {
+  cprintf("I GOT TO SIG RET OK OK \n");
   proc->tf->edi = proc->cpu_state.edi;
   proc->tf->esi = proc->cpu_state.esi;
   proc->tf->ebp = proc->cpu_state.ebp;
@@ -650,13 +644,10 @@ int handle_signals() {
     }
     // else return curr - and do stuff in assembly?
     // backup part of tf?
-    cprintf("handling signals for %d \n", proc->pid);
     backup_proc_tf(proc); 
-    cprintf("did the backup proc \n");
     edit_tf_for_sighandler(proc, curr->value, curr->sender_pid);
     // finished using the frame. free it.
     curr->used = CSTACKFRAME_UNUSED;
-    cprintf("returned from handle_signals \n");
     return 1;
   }
   return 0; // proc is 0 - not sure what to do here is this a data race?
@@ -680,22 +671,23 @@ extern void sigret_label_end(void);
 void edit_tf_for_sighandler(struct proc* p, int value_arg, int pid_arg) {
   uint injected_code_size;
   uint injected_code_address;
-  cprintf("in edit_tf for %d \n", p->pid);
+
   // we need edit the eip to be the address of the sighandler. 
   p->tf->eip = (uint) p->sig_handler;
+
   // do I need to make room for the return address here? probably
   // We need to make room for the injected sigret code. fml. 
-  injected_code_size = (&sigret_label_end - &sigret_label_end); 
-  db
-  // Update the user-esp
+  injected_code_size = (&sigret_label_end - &sigret_label_start); 
+  cprintf("size of injected code %d \n", injected_code_size);
+
+  // Update the user-esp, make room for sigret code.
   p->tf->esp -= injected_code_size;
-  injected_code_size = p->tf->esp;
-  db
+  injected_code_address = p->tf->esp;
+
   // Move the code onto the stack. 
-  memmove((void *) p->tf->esp,
+  memmove((void *) injected_code_address,
           (const void *) &sigret_label_start, 
           injected_code_size);
-  db
   // Can we just push the the arguments on the user stack from here? 
   
   p->tf->esp -= 4; // make room for second arg fml

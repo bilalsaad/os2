@@ -3,7 +3,7 @@
 #include "user.h"
 
 void handler(int pid, int value) {
-  printf(1, "I got a signal");
+  printf(1, "I got a signal pid[%d], value[%d] \n", pid, value);
 }
 int main(int argc, char** argv) {
   int pid;
@@ -13,16 +13,13 @@ int main(int argc, char** argv) {
 
   if(pid == 0){ // child code
     while(1) {
-      sleep(3);
-      printf(1, "in ibrahim teez \n");
-      sigpause();
-      printf(1, "out of ibrahim teez \n");
+      sleep(8);
+      printf(1, "lalalalalalalala\n");
     }
   }
   else {
-    sleep(4);
-    printf(1,"--------- [%d] --[%d]-------- \n\n ==== \n", sigsend(pid, 10),
-        pid); 
+    sleep(1);
+    printf(1,"[%d] [%d] \n", sigsend(pid, 10), pid); 
   }
   exit();
 }
