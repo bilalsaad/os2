@@ -538,7 +538,6 @@ int push(struct cstack *cstack, int sender_pid, int recepient_pid, int value) {
   do {
     new_frame->next = cstack->head;
   } while(!cas((int *)&cstack->head, (int) new_frame->next, (int)new_frame));
-  wakeup1(recepient_pid);
   return 1; // SUCCESS
 }
 
@@ -549,7 +548,15 @@ struct cstackframe *pop(struct cstack *cstack) {
     if(old == EMPTY_STACK){ // Empty stack.
       return EMPTY_STACK;
     }
-  } while(!cas((int *) &cstack->head, (int) old, (int) (cstack->head->next) ));
+  } while(!cas((int *) &cstack->head, (int) old, (int) (cstack->head->next)));
+  if(old != EMPTY_STACK) {
+    cprintf("called pop in %d \n", proc->pid);
+    cprintf("pop values %d %d %d \n",
+        old->recepient_pid, old->sender_pid, old->value);
+    cprintf("value of sighandler: %s \n",
+        (proc->sig_handler == DEFAULT_HANDLER) ?
+        "IBRAHIM HOMO" : "2057474250");
+  }
   return old; 
 }
 
@@ -577,8 +584,7 @@ struct cstackframe* get_stack_frame(struct cstack* cstack) {
 // sigset. Not sure what to return here.. Maybe int? or IDK
 sig_handler sigset(sig_handler handler) {
   // could there be a data race here? I don't think so. 
-  sig_handler old = proc->sig_handler;
-  
+  sig_handler old = proc->sig_handler; 
   proc->sig_handler = handler;
   return old; 
 }
@@ -592,6 +598,7 @@ int sigsend(int dest_pid, int value) {
     ++p;
   }
   // If no such process was found. Well we can always return -1;
+  wakeup((void *)dest_pid);
   return -1;
 }
 
@@ -600,9 +607,10 @@ int sigpause() {
   acquire(&ptable.lock);
   for(;;) {
     proc->state = SLEEPING;
-    proc->chan = int(proc);
+    proc->chan = (int) (proc);
 
     if(proc->cstack.head != EMPTY_STACK) {
+      cprintf("fuck you all fuck you all \n");
       proc->state = RUNNING;
       proc->chan = 0;
       release(&ptable.lock);
@@ -617,14 +625,14 @@ int sigpause() {
 // Here we must restore the previous cpu state after the sig handler..
 void sigret() {
   proc->tf->edi = proc->cpu_state.edi;
-  proc->tf->esi = proc->cpu_state.edi;
-  proc->tf->ebp = proc->cpu_state.edi;
-  proc->tf->ebx = proc->cpu_state.edi
-  proc->tf->edx = proc->cpu_state.edi;
-  proc->tf->ecx = proc->cpu_state.edi;
-  proc->tf->eax = proc->cpu_state.edi;
-  proc->tf->eip = proc->cpu_state.edi;
-  proc->tf->esp = proc->cpu_state.edi;
+  proc->tf->esi = proc->cpu_state.esi;
+  proc->tf->ebp = proc->cpu_state.ebp;
+  proc->tf->ebx = proc->cpu_state.ebx;
+  proc->tf->edx = proc->cpu_state.edx;
+  proc->tf->ecx = proc->cpu_state.ecx;
+  proc->tf->eax = proc->cpu_state.eax;
+  proc->tf->eip = proc->cpu_state.eip;
+  proc->tf->esp = proc->cpu_state.esp;
 }
 void backup_proc_tf(struct proc*);
 void edit_tf_for_sighandler(struct proc*, int, int);
@@ -637,14 +645,18 @@ int handle_signals() {
   struct cstackframe* curr = 0;
   if(proc != 0) {
     curr = pop(&proc->cstack);
-    if(curr == EMPTY_STACK || proc->sig_handler == DEFAULT_HANDLER)
+    if(curr == EMPTY_STACK || proc->sig_handler == DEFAULT_HANDLER) {
       return 0;
+    }
     // else return curr - and do stuff in assembly?
     // backup part of tf?
+    cprintf("handling signals for %d \n", proc->pid);
     backup_proc_tf(proc); 
+    cprintf("did the backup proc \n");
     edit_tf_for_sighandler(proc, curr->value, curr->sender_pid);
     // finished using the frame. free it.
     curr->used = CSTACKFRAME_UNUSED;
+    cprintf("returned from handle_signals \n");
     return 1;
   }
   return 0; // proc is 0 - not sure what to do here is this a data race?
@@ -664,35 +676,38 @@ void backup_proc_tf(struct proc* p) {
 
 extern void sigret_label_start(void);
 extern void sigret_label_end(void);
+#define db cprintf("IN LINE %d \n", __LINE__);
 void edit_tf_for_sighandler(struct proc* p, int value_arg, int pid_arg) {
   uint injected_code_size;
   uint injected_code_address;
+  cprintf("in edit_tf for %d \n", p->pid);
   // we need edit the eip to be the address of the sighandler. 
   p->tf->eip = (uint) p->sig_handler;
   // do I need to make room for the return address here? probably
   // We need to make room for the injected sigret code. fml. 
   injected_code_size = (&sigret_label_end - &sigret_label_end); 
-
+  db
   // Update the user-esp
-  proc->tf->esp -= injected_code_size;
-  injected_code_size = proc->tf->esp;
-
+  p->tf->esp -= injected_code_size;
+  injected_code_size = p->tf->esp;
+  db
   // Move the code onto the stack. 
-  memmove((void *) proc->tf->esp,
+  memmove((void *) p->tf->esp,
           (const void *) &sigret_label_start, 
           injected_code_size);
+  db
   // Can we just push the the arguments on the user stack from here? 
   
-  proc->tf->esp -= 4; // make room for second arg fml
-  memmove((void *) proc->tf->esp,
+  p->tf->esp -= 4; // make room for second arg fml
+  memmove((void *) p->tf->esp,
       (const void *) &value_arg,
       4);
-  proc->tf->esp -= 4; // make room for first arg fml
-  memmove((void *) proc->tf->esp,
+  p->tf->esp -= 4; // make room for first arg fml
+  memmove((void *) p->tf->esp,
       (const void *) &pid_arg,
       4);
-  proc->tf->esp -= 4; // make room for the return address
-  memmove((void *) proc->tf->esp,
+  p->tf->esp -= 4; // make room for the return address
+  memmove((void *) p->tf->esp,
       (const void *) &injected_code_address,
       4);
 }
