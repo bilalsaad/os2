@@ -120,6 +120,7 @@ struct proc {
   struct cpu_state cpu_state;  // Used for saving cpu state before calling a 
                                // signal handler.
   int in_handler;              // If non-zero, handling a signal.
+  int paused;                  // If non-zero, in sigpaused.     
 };
 
 // Process memory is laid out contiguously, low addresses first:

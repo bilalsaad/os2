@@ -7,21 +7,26 @@ void handler(int pid, int value) {
 }
 int main(int argc, char** argv) {
   int pid;
-
+  int i = 10;
+  int parent_pid = getpid();
   sigset(handler);
   pid = fork();
+  
 
   if(pid == 0){ // child code
-    while(1) {
+    while(i --> 0) {
       sigpause();
-      printf(1, "lalalalalalalala\n");
+      printf(1, "hallliluja \n");
+      sigsend(parent_pid, 1);
     }
   }
   else {
-    sleep(1);
-    printf(1,"[%d] [%d] \n", sigsend(pid, 10), pid); 
-    printf(1,"[%d] [%d] \n", sigsend(pid, 10), pid); 
-    printf(1,"[%d] [%d] \n", sigsend(pid, 10), pid); 
+    while(i-->0){
+      sleep(10);
+      sigsend(pid, i);
+      sigpause();
+    }
   }
+
   exit();
 }

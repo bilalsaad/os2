@@ -6,6 +6,8 @@
 #include "x86.h"
 #include "proc.h"
 #include "spinlock.h"
+#define db cprintf("IN LINE %d \n", __LINE__);
+#define dbs(x) cprintf("%s %d \n",x , __LINE__);
 
 struct {
   struct spinlock lock;
@@ -511,7 +513,6 @@ procdump(void)
       for(i=0; i<10 && pc[i] != 0; i++)
         cprintf(" %p", pc[i]);
     }
-    cprintf("\n");
   }
 }
 
@@ -589,26 +590,28 @@ int sigsend(int dest_pid, int value) {
   struct proc* p = ptable.proc;
   while(p < ptable.proc + NPROC) {
     if(p->pid == dest_pid){  // Found it.
-      if(p->state == SLEEPING);
+      acquire(&ptable.lock);
+      if(p->paused && p->state == SLEEPING)
         p->state=RUNNABLE;
+      p->paused = 0;
+      release(&ptable.lock);
       return push(&p->cstack, proc->pid /* sender */, dest_pid, value);
     }
     ++p;
   }
   // If no such process was found. Well we can always return -1;
-  wakeup((void *)dest_pid);
   return -1;
 }
 
-int sigpause() {
-  
+int sigpause() { 
   acquire(&ptable.lock);
   for(;;) {
     proc->state = SLEEPING;
+    proc->paused = 1;
 
     if(proc->cstack.head != EMPTY_STACK) {
       proc->state = RUNNING;
-      proc->chan = 0;
+      proc->paused = 0;
       release(&ptable.lock);
       return 1;
     }
@@ -632,8 +635,11 @@ void sigret() {
   proc->tf->esp = proc->cpu_state.esp;
   proc->in_handler = OUT_HANDLER;
 }
+
 void backup_proc_tf(struct proc*);
 void edit_tf_for_sighandler(struct proc*, int, int);
+
+
 // should do something with pending signals!!! 
 // The plan is to now - if proc = zero ret 0-- need to ask if this is possible
 // else if the stack is empty or if that the sig handler is the default one.
@@ -641,6 +647,7 @@ void edit_tf_for_sighandler(struct proc*, int, int);
 // else <backup the user tf> and return the cstack frame to the assembly fellah
 int handle_signals() {
   struct cstackframe* curr = 0;
+  
   if(proc != 0) {
     curr = (proc->in_handler == IN_HANDLER) ? EMPTY_STACK : pop(&proc->cstack);
     if(curr == EMPTY_STACK || proc->sig_handler == DEFAULT_HANDLER) {
@@ -672,9 +679,8 @@ void backup_proc_tf(struct proc* p) {
 
 extern void sigret_label_start(void);
 extern void sigret_label_end(void);
-#define db cprintf("IN LINE %d \n", __LINE__);
-#define ASSERT_EQ(a,b) { if ((int) a != (int) b) \
- cprintf("FAILURE AMIGO \n\n");
+
+
 // This function gets the user-stack ready for invoking the signal handler.
 // we need for the ret address for the injected code to be the old eip.
 // we inject both the sigret code on the stack, its address on the stack as 
