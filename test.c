@@ -13,12 +13,14 @@ int main(int argc, char** argv) {
 
   if(pid == 0){ // child code
     while(1) {
-      sleep(8);
+      sigpause();
       printf(1, "lalalalalalalala\n");
     }
   }
   else {
     sleep(1);
+    printf(1,"[%d] [%d] \n", sigsend(pid, 10), pid); 
+    printf(1,"[%d] [%d] \n", sigsend(pid, 10), pid); 
     printf(1,"[%d] [%d] \n", sigsend(pid, 10), pid); 
   }
   exit();

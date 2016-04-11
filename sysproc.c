@@ -102,6 +102,7 @@ sys_sigsend(void)
 int 
 sys_sigret(void)
 {
+  sigret();
   return 0;
 }
 

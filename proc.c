@@ -72,6 +72,7 @@ allocproc(void)
 
 
   // SIGNALZ -- gettiing the cstack up and ready.
+  p->in_handler = OUT_HANDLER;
   p->sig_handler = DEFAULT_HANDLER; 
   p->cstack.head = EMPTY_STACK;
   cstack_iter = p->cstack.frames;
@@ -587,8 +588,11 @@ sig_handler sigset(sig_handler handler) {
 int sigsend(int dest_pid, int value) {
   struct proc* p = ptable.proc;
   while(p < ptable.proc + NPROC) {
-    if(p->pid == dest_pid)  // Found it.
+    if(p->pid == dest_pid){  // Found it.
+      if(p->state == SLEEPING);
+        p->state=RUNNABLE;
       return push(&p->cstack, proc->pid /* sender */, dest_pid, value);
+    }
     ++p;
   }
   // If no such process was found. Well we can always return -1;
@@ -601,7 +605,6 @@ int sigpause() {
   acquire(&ptable.lock);
   for(;;) {
     proc->state = SLEEPING;
-    proc->chan = (int) (proc);
 
     if(proc->cstack.head != EMPTY_STACK) {
       proc->state = RUNNING;
@@ -617,7 +620,7 @@ int sigpause() {
 
 // Here we must restore the previous cpu state after the sig handler..
 void sigret() {
-  cprintf("I GOT TO SIG RET OK OK \n");
+  // restore the backed up cpu_state.
   proc->tf->edi = proc->cpu_state.edi;
   proc->tf->esi = proc->cpu_state.esi;
   proc->tf->ebp = proc->cpu_state.ebp;
@@ -627,6 +630,7 @@ void sigret() {
   proc->tf->eax = proc->cpu_state.eax;
   proc->tf->eip = proc->cpu_state.eip;
   proc->tf->esp = proc->cpu_state.esp;
+  proc->in_handler = OUT_HANDLER;
 }
 void backup_proc_tf(struct proc*);
 void edit_tf_for_sighandler(struct proc*, int, int);
@@ -638,7 +642,7 @@ void edit_tf_for_sighandler(struct proc*, int, int);
 int handle_signals() {
   struct cstackframe* curr = 0;
   if(proc != 0) {
-    curr = pop(&proc->cstack);
+    curr = (proc->in_handler == IN_HANDLER) ? EMPTY_STACK : pop(&proc->cstack);
     if(curr == EMPTY_STACK || proc->sig_handler == DEFAULT_HANDLER) {
       return 0;
     }
@@ -654,6 +658,7 @@ int handle_signals() {
 }
 
 void backup_proc_tf(struct proc* p) {
+  proc->in_handler = IN_HANDLER;
   p->cpu_state.edi = p->tf->edi;
   p->cpu_state.esi = p->tf->esi;
   p->cpu_state.ebp = p->tf->ebp;
@@ -668,32 +673,42 @@ void backup_proc_tf(struct proc* p) {
 extern void sigret_label_start(void);
 extern void sigret_label_end(void);
 #define db cprintf("IN LINE %d \n", __LINE__);
+#define ASSERT_EQ(a,b) { if ((int) a != (int) b) \
+ cprintf("FAILURE AMIGO \n\n");
+// This function gets the user-stack ready for invoking the signal handler.
+// we need for the ret address for the injected code to be the old eip.
+// we inject both the sigret code on the stack, its address on the stack as 
+// the return address of the handler and the handler args.
 void edit_tf_for_sighandler(struct proc* p, int value_arg, int pid_arg) {
   uint injected_code_size;
   uint injected_code_address;
-
+  uint old_eip = proc->tf->eip;
   // we need edit the eip to be the address of the sighandler. 
   p->tf->eip = (uint) p->sig_handler;
 
   // do I need to make room for the return address here? probably
   // We need to make room for the injected sigret code. fml. 
   injected_code_size = (&sigret_label_end - &sigret_label_start); 
-  cprintf("size of injected code %d \n", injected_code_size);
 
+  proc->tf->esp -= 4; // room for the old eip.
+  memmove((void *) proc->tf->esp,
+          (const void *) &old_eip,
+          4);
+  
   // Update the user-esp, make room for sigret code.
   p->tf->esp -= injected_code_size;
   injected_code_address = p->tf->esp;
-
+  
   // Move the code onto the stack. 
   memmove((void *) injected_code_address,
           (const void *) &sigret_label_start, 
           injected_code_size);
-  // Can we just push the the arguments on the user stack from here? 
   
   p->tf->esp -= 4; // make room for second arg fml
   memmove((void *) p->tf->esp,
       (const void *) &value_arg,
       4);
+
   p->tf->esp -= 4; // make room for first arg fml
   memmove((void *) p->tf->esp,
       (const void *) &pid_arg,
@@ -702,8 +717,4 @@ void edit_tf_for_sighandler(struct proc* p, int value_arg, int pid_arg) {
   memmove((void *) p->tf->esp,
       (const void *) &injected_code_address,
       4);
-}
-
-uint get_esp() {
-  return proc->tf->esp;
 }

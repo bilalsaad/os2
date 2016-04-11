@@ -97,6 +97,8 @@ struct cpu_state {
 // ------------------------------------------------------------------------
 enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 #define DEFAULT_HANDLER (sig_handler) -1
+#define IN_HANDLER 1
+#define OUT_HANDLER 0
 // Per-process state
 struct proc {
   uint sz;                     // Size of process memory (bytes)
@@ -117,6 +119,7 @@ struct proc {
   struct cstack cstack;        // Pending signals.
   struct cpu_state cpu_state;  // Used for saving cpu state before calling a 
                                // signal handler.
+  int in_handler;              // If non-zero, handling a signal.
 };
 
 // Process memory is laid out contiguously, low addresses first:
