@@ -95,7 +95,16 @@ struct cpu_state {
   uint esp;
 };
 // ------------------------------------------------------------------------
-enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
+enum procstate { 
+  UNUSED,
+  EMBRYO,
+  SLEEPING,
+  RUNNABLE,
+  RUNNING,
+  ZOMBIE,
+  NEG_RUNNABLE,
+  NEG_SLEEPING,
+  NEG_ZOMBIE};
 #define DEFAULT_HANDLER (sig_handler) -1
 #define IN_HANDLER 1
 #define OUT_HANDLER 0
