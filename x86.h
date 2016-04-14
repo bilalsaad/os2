@@ -149,7 +149,7 @@ static inline int cas(volatile int* addr, int expected, int newval) {
   asm volatile("lock; cmpxchgl %1, %2; sete %%al;":/* assembly code template */  
                "=a"(result) : /* output parameters */
                "r"(newval), "m"(*addr), "a"(expected) : /* input params */ 
-               "cc");
+               "cc", "memory");
   return result;
 }
 

@@ -8,6 +8,8 @@
 #include "traps.h"
 #include "memlayout.h"
 
+
+#define db printf(1, "line: %d \n", __LINE__);
 char buf[8192];
 char name[3];
 char *echoargv[] = { "echo", "ALL", "TESTS", "PASSED", 0 };
@@ -795,8 +797,9 @@ concreate(void)
       exit();
     else
       wait();
+  printf(1,"iter : %d \n", i) ;
   }
-
+   
   memset(fa, 0, sizeof(fa));
   fd = open(".", 0);
   n = 0;
@@ -1714,8 +1717,8 @@ main(int argc, char *argv[])
   }
   close(open("usertests.ran", O_CREATE));
 
-  createdelete();
-  linkunlink();
+//  createdelete();
+//  linkunlink();
   concreate();
   fourfiles();
   sharedfd();

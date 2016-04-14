@@ -9,13 +9,38 @@
 #define db cprintf("IN LINE %d \n", __LINE__);
 #define dbs(x) cprintf("%s %d \n",x , __LINE__);
 
+
+
+
+#define check_cas2(p, S1, S2) \
+  if(!cas(p, S1, S2)){ \
+    cprintf("EXPECTED %s got %s : line %d \n", sts[S1], \
+        sts[proc->state], __LINE__); \
+    panic("CAS INVADILITY"); \
+  } 
+#define check_cas(S1, S2) check_cas2(&proc->state, S1, S2);
+
+#define sched_check if(proc != 0 && proc->state == RUNNING) \
+                               db;
+
+static char *sts[] = {
+  [UNUSED]          "unused",
+  [EMBRYO]          "embryo",
+  [SLEEPING]        "sleep ",
+  [RUNNABLE]        "runble",
+  [RUNNING]         "run   ",
+  [ZOMBIE]          "zombie",
+  [NEG_ZOMBIE]      "neg_zombie",
+  [NEG_RUNNABLE]    "neg_runnable",
+  [NEG_SLEEPING]    "neg sleeping"
+  };
 struct {
 //  struct spinlock lock;
   struct proc proc[NPROC];
 } ptable;
 
 static struct proc *initproc;
-
+char * foo(int);
 int nextpid = 1;
 extern void forkret(void);
 extern void trapret(void);
@@ -123,6 +148,7 @@ userinit(void)
   safestrcpy(p->name, "initcode", sizeof(p->name));
   p->cwd = namei("/");
 
+  check_cas2(&p->state, EMBRYO, RUNNING);
   p->state = RUNNABLE;
 }
 
@@ -187,7 +213,8 @@ fork(void)
   // lock to force the compiler to emit the np->state write last.
  // acquire(&ptable.lock);
   pushcli();
-  np->state = RUNNABLE;
+  check_cas2(&np->state, EMBRYO, RUNNABLE);
+  //np->state = RUNNABLE;
   popcli();
  // release(&ptable.lock);
   
@@ -222,7 +249,8 @@ exit(void)
   pushcli();
   //acquire(&ptable.lock);
 
-  proc->state = ZOMBIE;
+  check_cas(RUNNING, NEG_ZOMBIE);
+  //proc->state = ZOMBIE;
 
   // Parent might be sleeping in wait().
   wakeup1(proc->parent);
@@ -231,13 +259,14 @@ exit(void)
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if(p->parent == proc){
       p->parent = initproc;
-      if(p->state == ZOMBIE)
+      if(p->state == ZOMBIE || p->state == NEG_ZOMBIE)
         wakeup1(initproc);
     }
   }
 
   // Jump into the scheduler, never to return.
   
+  sched_check;
   sched();
   panic("zombie exit");
 }
@@ -254,14 +283,16 @@ wait(void)
   pushcli();
   for(;;){
     proc->chan = (int)proc;
-    proc->state = SLEEPING;    
+    check_cas(RUNNING, NEG_SLEEPING);
+    //proc->state = NEG_SLEEPING;    
+    
     // Scan through table looking for zombie children.
     havekids = 0;
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
       if(p->parent != proc)
         continue;
       havekids = 1;
-      if(p->state == ZOMBIE){
+      if(p->state == ZOMBIE || p->state == NEG_ZOMBIE){
         // Found one.
         pid = p->pid;
         p->state = UNUSED;
@@ -269,7 +300,8 @@ wait(void)
         p->parent = 0;
         p->name[0] = 0;
         proc->chan = 0;
-        proc->state = RUNNING;
+        //proc->state = RUNNING;
+        check_cas(NEG_SLEEPING, RUNNING);
         //release(&ptable.lock);
         popcli();
         return pid;
@@ -279,13 +311,15 @@ wait(void)
     // No point waiting if we don't have any children.
     if(!havekids || proc->killed){
       proc->chan = 0;
-      proc->state = RUNNING;      
+      check_cas(NEG_SLEEPING, RUNNING);
+      //proc->state = RUNNING;      
       //release(&ptable.lock);
       popcli();
       return -1;
     }
 
     // Wait for children to exit.  (See wakeup1 call in proc_exit.)
+    sched_check;
     sched();
   }
 }
@@ -332,10 +366,14 @@ scheduler(void)
       // before jumping back to us.
       proc = p;
       switchuvm(p);
-      p->state = RUNNING;
+      check_cas2(&proc->state, RUNNING,RUNNING);
+      //p->state = RUNNING;
       swtch(&cpu->scheduler, proc->context);
       switchkvm();
-      cas(&p->state,NEG_RUNNABLE, RUNNABLE);
+      cas(&p->state, NEG_SLEEPING, SLEEPING);
+      cas(&p->state, NEG_RUNNABLE, RUNNABLE);
+
+      cas(&p->state, NEG_ZOMBIE, ZOMBIE);
 
       // Process is done running for now.
       // It should have changed its p->state before coming back.
@@ -376,8 +414,9 @@ yield(void)
   pushcli();
   //acquire(&ptable.lock);  //DOC: yieldlock
   //proc->state = RUNNABLE;
-  if(!cas(&proc->state, RUNNING, NEG_RUNNABLE))
-    panic("NON RUNNING PROC IN YIELD!!!!!!!!!!!!");
+  check_cas(RUNNING, NEG_RUNNABLE);
+
+  sched_check;
   sched();
   popcli();
   //release(&ptable.lock);
@@ -417,7 +456,8 @@ sleep(void *chan, struct spinlock *lk)
 
   // Go to sleep.
   proc->chan = (int)chan;
-  proc->state = SLEEPING;
+  check_cas(RUNNING, NEG_SLEEPING);
+  //proc->state = NEG_SLEEPING;
 
   // Must acquire ptable.lock in order to
   // change p->state and then call sched.
@@ -432,6 +472,7 @@ sleep(void *chan, struct spinlock *lk)
   pushcli();
   release(lk);
 
+  sched_check;
   sched();
   
   popcli();
@@ -451,12 +492,19 @@ wakeup1(void *chan)
 {
   struct proc *p;
 
-  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
     if(p->state == SLEEPING && p->chan == (int)chan){
-      p->state = RUNNABLE;
+      check_cas2(&p->state, SLEEPING, RUNNABLE);
+      //p->state = RUNNABLE;
         // Tidy up.
       p->chan = 0;
     }
+    if(p->state == NEG_SLEEPING && p->chan == (int)chan) {
+      p->state = NEG_RUNNABLE;
+      p->chan = 0;
+    }
+  }
+    
 }
 
 // Wake up all processes sleeping on chan.
@@ -603,35 +651,37 @@ sig_handler sigset(sig_handler handler) {
 // Not sure if I need to synchronize anything here. 
 int sigsend(int dest_pid, int value) {
   struct proc* p = ptable.proc;
+  int res = -1;
   while(p < ptable.proc + NPROC) {
     if(p->pid == dest_pid){  // Found it.
-      //acquire(&ptable.lock);
-      if(p->paused && p->state == SLEEPING)
-        p->state=RUNNABLE;
-      p->paused = 0;
-     // release(&ptable.lock);
-      return push(&p->cstack, proc->pid /* sender */, dest_pid, value);
+
+     res = push(&p->cstack, proc->pid /* sender */, dest_pid, value);
+     wakeup(&p->cstack);
     }
     ++p;
   }
   // If no such process was found. Well we can always return -1;
-  return -1;
+  return res;
 }
 
 int sigpause() { 
   //acquire(&ptable.lock);
   pushcli();
   for(;;) {
-    proc->state = SLEEPING;
+    //proc->state = NEG_SLEEPING;
+    check_cas(RUNNING, NEG_SLEEPING);
     proc->paused = 1;
+    proc->chan = (int) &proc->cstack;
 
     if(proc->cstack.head != EMPTY_STACK) {
-      proc->state = RUNNING;
+      check_cas(NEG_SLEEPING, RUNNING);
       proc->paused = 0;
+      proc->chan = 0;
       //release(&ptable.lock);
       popcli();
       return 1;
     }
+    sched_check;
     sched();
   }
 
@@ -741,3 +791,4 @@ void edit_tf_for_sighandler(struct proc* p, int value_arg, int pid_arg) {
       (const void *) &injected_code_address,
       4);
 }
+
