@@ -21,6 +21,7 @@ void handler(int pid, int value) {
     exit();
   }
   while (!isprime(value++));
+  sleep(100);
   sigsend(pid, value - 1);
 }
 

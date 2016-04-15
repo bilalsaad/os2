@@ -799,7 +799,7 @@ concreate(void)
       wait();
   printf(1,"iter : %d \n", i) ;
   }
-   
+  printf(1, "finitio \n"); 
   memset(fa, 0, sizeof(fa));
   fd = open(".", 0);
   n = 0;
@@ -819,6 +819,7 @@ concreate(void)
       fa[i] = 1;
       n++;
     }
+    printf(1, "iter2 i %d \n", i++);
   }
   close(fd);
 
@@ -1574,14 +1575,17 @@ validatetest(void)
   for(p = 0; p <= (uint)hi; p += 4096){
     if((pid = fork()) == 0){
       // try to crash the kernel by passing in a badly placed integer
+      db;
       validateint((int*)p);
       exit();
     }
     sleep(0);
     sleep(0);
+    db;
     kill(pid);
+    db;
     wait();
-
+    db;
     // try to crash the kernel by passing in a bad string pointer
     if(link("nosuchfile", (char*)p) != -1){
       printf(stdout, "link should not succeed\n");
@@ -1715,10 +1719,14 @@ main(int argc, char *argv[])
     printf(1, "already ran user tests -- rebuild fs.img\n");
     exit();
   }
+  if(argc > 1) {
+    concreate();
+    exit();
+  }
   close(open("usertests.ran", O_CREATE));
 
-//  createdelete();
-//  linkunlink();
+  createdelete();
+  linkunlink();
   concreate();
   fourfiles();
   sharedfd();
@@ -1758,3 +1766,7 @@ main(int argc, char *argv[])
 
   exit();
 }
+
+
+
+

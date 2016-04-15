@@ -32,7 +32,8 @@ static char *sts[] = {
   [ZOMBIE]          "zombie",
   [NEG_ZOMBIE]      "neg_zombie",
   [NEG_RUNNABLE]    "neg_runnable",
-  [NEG_SLEEPING]    "neg sleeping"
+  [NEG_SLEEPING]    "neg sleeping",
+  [NEG_UNUSED]      "neg_unused"
   };
 struct {
 //  struct spinlock lock;
@@ -292,10 +293,11 @@ wait(void)
       if(p->parent != proc)
         continue;
       havekids = 1;
+
       if(p->state == ZOMBIE || p->state == NEG_ZOMBIE){
         // Found one.
         pid = p->pid;
-        p->state = UNUSED;
+        p->state = (p->state == NEG_ZOMBIE) ? NEG_UNUSED : UNUSED;
         p->pid = 0;
         p->parent = 0;
         p->name[0] = 0;
@@ -374,6 +376,7 @@ scheduler(void)
       cas(&p->state, NEG_RUNNABLE, RUNNABLE);
 
       cas(&p->state, NEG_ZOMBIE, ZOMBIE);
+      cas(&p->state, NEG_UNUSED, UNUSED);
 
       // Process is done running for now.
       // It should have changed its p->state before coming back.
@@ -493,18 +496,16 @@ wakeup1(void *chan)
   struct proc *p;
 
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+    if(p->state == NEG_SLEEPING && p->chan == (int)chan) {
+      while(p->state == NEG_SLEEPING);
+    }
     if(p->state == SLEEPING && p->chan == (int)chan){
       check_cas2(&p->state, SLEEPING, RUNNABLE);
       //p->state = RUNNABLE;
         // Tidy up.
       p->chan = 0;
     }
-    if(p->state == NEG_SLEEPING && p->chan == (int)chan) {
-      p->state = NEG_RUNNABLE;
-      p->chan = 0;
-    }
   }
-    
 }
 
 // Wake up all processes sleeping on chan.
@@ -532,6 +533,7 @@ kill(int pid)
     if(p->pid == pid){
       p->killed = 1;
       // Wake process from sleep if necessary.
+      while(p->state == NEG_SLEEPING);
       if(p->state == SLEEPING)
         p->state = RUNNABLE;
       //release(&ptable.lock);
