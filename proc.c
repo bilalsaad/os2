@@ -149,7 +149,7 @@ userinit(void)
   safestrcpy(p->name, "initcode", sizeof(p->name));
   p->cwd = namei("/");
 
-  check_cas2(&p->state, EMBRYO, RUNNING);
+  check_cas2(&p->state, EMBRYO, RUNNABLE);
   p->state = RUNNABLE;
 }
 
@@ -359,7 +359,7 @@ scheduler(void)
     //acquire(&ptable.lock);
     pushcli();
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(!cas(&p->state, RUNNABLE, RUNNING))
+      if(!cas(&p->state, RUNNABLE, NEG_RUNNABLE))
         continue;
 
       // Should we handler signals here?
@@ -368,8 +368,7 @@ scheduler(void)
       // before jumping back to us.
       proc = p;
       switchuvm(p);
-      check_cas2(&proc->state, RUNNING,RUNNING);
-      //p->state = RUNNING;
+      check_cas2(&p->state, NEG_RUNNABLE, RUNNING);
       swtch(&cpu->scheduler, proc->context);
       switchkvm();
       cas(&p->state, NEG_SLEEPING, SLEEPING);
@@ -458,6 +457,9 @@ sleep(void *chan, struct spinlock *lk)
     panic("sleep without lk");
 
   // Go to sleep.
+  if(proc->name[2] == 'e' && proc->pid > 10  && proc->pid < 55) 
+    cprintf("process w/ pid: %d going to sleep on %p \n", proc->pid,
+        (uint) chan);
   proc->chan = (int)chan;
   check_cas(RUNNING, NEG_SLEEPING);
   //proc->state = NEG_SLEEPING;
@@ -494,16 +496,16 @@ static void
 wakeup1(void *chan)
 {
   struct proc *p;
-
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
-    if(p->state == NEG_SLEEPING && p->chan == (int)chan) {
-      while(p->state == NEG_SLEEPING);
+    if(p->state != SLEEPING && p->chan == (int)chan) {
+      while(p->state != SLEEPING);
     }
-    if(p->state == SLEEPING && p->chan == (int)chan){
-      check_cas2(&p->state, SLEEPING, RUNNABLE);
+    if(p->chan == (int)chan && cas(&p->state, SLEEPING, NEG_RUNNABLE)){
+      //check_cas2(&p->state, SLEEPING, RUNNABLE);
       //p->state = RUNNABLE;
         // Tidy up.
-      p->chan = 0;
+      check_cas2(&p->chan, (int) chan, 0);
+      check_cas2(&p->state, NEG_RUNNABLE, RUNNABLE);
     }
   }
 }
@@ -553,13 +555,17 @@ kill(int pid)
 void
 procdump(void)
 {
-  static char *states[] = {
-  [UNUSED]    "unused",
-  [EMBRYO]    "embryo",
-  [SLEEPING]  "sleep ",
-  [RUNNABLE]  "runble",
-  [RUNNING]   "run   ",
-  [ZOMBIE]    "zombie"
+static char *states[] = {
+  [UNUSED]          "unused",
+  [EMBRYO]          "embryo",
+  [SLEEPING]        "sleep ",
+  [RUNNABLE]        "runble",
+  [RUNNING]         "run   ",
+  [ZOMBIE]          "zombie",
+  [NEG_ZOMBIE]      "neg_zombie",
+  [NEG_RUNNABLE]    "neg_runnable",
+  [NEG_SLEEPING]    "neg sleeping",
+  [NEG_UNUSED]      "neg_unused"
   };
   int i;
   struct proc *p;
@@ -572,8 +578,8 @@ procdump(void)
       state = states[p->state];
     else
       state = "???";
-    cprintf("%d %s %s", p->pid, state, p->name);
-    if(p->state == SLEEPING){
+    cprintf("[%d %s %s] \n  ", p->pid, state, p->name);
+    if(0 && p->state == SLEEPING){
       getcallerpcs((uint*)p->context->ebp+2, pc);
       for(i=0; i<10 && pc[i] != 0; i++)
         cprintf(" %p", pc[i]);

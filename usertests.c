@@ -793,11 +793,12 @@ concreate(void)
       }
       close(fd);
     }
-    if(pid == 0)
+    if(pid == 0){
       exit();
-    else
+    }
+    else{
       wait();
-  printf(1,"iter : %d \n", i) ;
+    }
   }
   printf(1, "finitio \n"); 
   memset(fa, 0, sizeof(fa));
@@ -819,10 +820,10 @@ concreate(void)
       fa[i] = 1;
       n++;
     }
-    printf(1, "iter2 i %d \n", i++);
   }
+  db;
   close(fd);
-
+  db;
   if(n != 40){
     printf(1, "concreate not enough files in directory listing\n");
     exit();
@@ -1581,11 +1582,8 @@ validatetest(void)
     }
     sleep(0);
     sleep(0);
-    db;
     kill(pid);
-    db;
     wait();
-    db;
     // try to crash the kernel by passing in a bad string pointer
     if(link("nosuchfile", (char*)p) != -1){
       printf(stdout, "link should not succeed\n");

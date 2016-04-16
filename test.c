@@ -1,6 +1,7 @@
 #include "types.h"
 #include "stat.h" 
 #include "user.h"
+#define db printf(1,"LINE %d \n", __LINE__);
 void concreate(void);
 void handler(int pid, int value) {
   printf(1, "I got a signal pid[%d], value[%d] \n", pid, value);
@@ -86,9 +87,12 @@ concreate(void)
   memset(fa, 0, sizeof(fa));
   n = 0;
   j = 100;
-  while( j-- > 0){
-    if(de.inum == 0)
+  db;
+  while(j-->0){
+    if(de.inum == 0) {
+      printf(1, "iter2 i %d \n", j);
       continue;
+    }
     if(de.name[0] == 'C' && de.name[2] == '\0'){
       i = de.name[1] - '0';
       if(i < 0 || i >= sizeof(fa)){
@@ -100,9 +104,8 @@ concreate(void)
       fa[i] = 1;
       n++;
     }
-    printf(1, "iter2 i %d \n", i++);
+    printf(1, "iter2 i %d \n", j);
   }
-  close(fd);
 
   if(n != 40){
     foo();
