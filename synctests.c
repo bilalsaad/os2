@@ -7,7 +7,7 @@
 #include "syscall.h"
 #include "traps.h"
 #include "memlayout.h"
-
+#define db printf(1, "LINE %d \n", __LINE__);
 char buf[8192];
 char name[3];
 char *echoargv[] = { "echo", "ALL", "TESTS", "PASSED", 0 };
@@ -417,10 +417,11 @@ main(int argc, char *argv[])
   int  i;
   printf(1, "synctests starting\n");
 
-  //sbrktest();
+//  sbrktest();
 
   for (i = 0; i < 5 ; i++)
     validatetest();
+  printf(1, "validate test ok \n");
 
   //mem();
   for (i = 0; i < 5 ; i++)

@@ -1497,7 +1497,7 @@ sbrktest(void)
     printf(stdout, "sbrk downsize failed, a %x c %x\n", a, c);
     exit();
   }
-  
+ db; 
   // can we read the kernel's memory?
   for(a = (char*)(KERNBASE); a < (char*) (KERNBASE+2000000); a += 50000){
     ppid = getpid();
@@ -1513,7 +1513,7 @@ sbrktest(void)
     }
     wait();
   }
-
+db;
   // if we run the system out of memory, does it clean up the last
   // failed allocation?
   if(pipe(fds) != 0){
@@ -1534,12 +1534,17 @@ sbrktest(void)
   // if those failed allocations freed up the pages they did allocate,
   // we'll be able to allocate here
   c = sbrk(4096);
+  printf(1, "i --> %d \n", sizeof(pids)/sizeof(pids[0]));
   for(i = 0; i < sizeof(pids)/sizeof(pids[0]); i++){
     if(pids[i] == -1)
       continue;
+    printf(1,"iter %d \n", i);
     kill(pids[i]);
+    printf(1,"iter %d \n", i);
     wait();
+    printf(1,"iter %d \n", i);
   }
+  db;
   if(c == (char*)0xffffffff){
     printf(stdout, "failed sbrk leaked memory\n");
     exit();
@@ -1718,7 +1723,7 @@ main(int argc, char *argv[])
     exit();
   }
   if(argc > 1) {
-    concreate();
+    sbrktest();
     exit();
   }
   close(open("usertests.ran", O_CREATE));
@@ -1733,7 +1738,7 @@ main(int argc, char *argv[])
   bigwrite();
   bigargtest();
   bsstest();
-  sbrktest();
+//  sbrktest();
   validatetest();
 
   opentest();

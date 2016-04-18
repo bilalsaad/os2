@@ -14,6 +14,7 @@
 
 #define check_cas2(p, S1, S2) \
   if(!cas(p, S1, S2)){ \
+    procdump(); \
     cprintf("EXPECTED %s got %s : line %d \n", sts[S1], \
         sts[proc->state], __LINE__); \
     panic("CAS INVADILITY"); \
@@ -233,7 +234,6 @@ exit(void)
 
   if(proc == initproc)
     panic("init exiting");
-
   // Close all open files.
   for(fd = 0; fd < NOFILE; fd++){
     if(proc->ofile[fd]){
@@ -260,7 +260,8 @@ exit(void)
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if(p->parent == proc){
       p->parent = initproc;
-      if(p->state == ZOMBIE || p->state == NEG_ZOMBIE)
+      while(p->state == NEG_ZOMBIE);
+      if(p->state == ZOMBIE /*|| p->state == NEG_ZOMBIE*/)
         wakeup1(initproc);
     }
   }
@@ -279,7 +280,6 @@ wait(void)
 {
   struct proc *p;
   int havekids, pid;
-
   //acquire(&ptable.lock);
   pushcli();
   for(;;){
@@ -294,16 +294,16 @@ wait(void)
         continue;
       havekids = 1;
 
-      if(p->state == ZOMBIE || p->state == NEG_ZOMBIE){
+      if(cas(&p->state, ZOMBIE, NEG_UNUSED)){
         // Found one.
         pid = p->pid;
-        p->state = (p->state == NEG_ZOMBIE) ? NEG_UNUSED : UNUSED;
         p->pid = 0;
         p->parent = 0;
         p->name[0] = 0;
         proc->chan = 0;
         //proc->state = RUNNING;
         check_cas(NEG_SLEEPING, RUNNING);
+        check_cas2(&p->state, NEG_UNUSED, UNUSED);
         //release(&ptable.lock);
         popcli();
         return pid;
@@ -312,6 +312,7 @@ wait(void)
 
     // No point waiting if we don't have any children.
     if(!havekids || proc->killed){
+      cprintf("no kids \n");
       proc->chan = 0;
       check_cas(NEG_SLEEPING, RUNNING);
       //proc->state = RUNNING;      
@@ -329,7 +330,9 @@ wait(void)
 void 
 freeproc(struct proc *p)
 {
-  if (!p || (p->state != ZOMBIE && p->state != UNUSED))
+  if (!p ||
+      (p->state != ZOMBIE && p->state != UNUSED &&
+       p->state != NEG_ZOMBIE && p->state != NEG_UNUSED))
     panic("freeproc not zombie");
   kfree(p->kstack);
   p->kstack = 0;
@@ -373,14 +376,19 @@ scheduler(void)
       switchkvm();
       cas(&p->state, NEG_SLEEPING, SLEEPING);
       cas(&p->state, NEG_RUNNABLE, RUNNABLE);
-
-      cas(&p->state, NEG_ZOMBIE, ZOMBIE);
       cas(&p->state, NEG_UNUSED, UNUSED);
 
       // Process is done running for now.
       // It should have changed its p->state before coming back.
       proc = 0;
-      if (p->state == ZOMBIE || p->state == UNUSED)
+      if(p->state == NEG_ZOMBIE) {
+          freeproc(p);
+          cas(&p->state, NEG_ZOMBIE, ZOMBIE);
+          if(p->parent)
+            wakeup1(p->parent);
+      }
+
+      if(p->state == NEG_UNUSED || p->state==UNUSED)
         freeproc(p);
     }
     //release(&ptable.lock);
@@ -457,7 +465,7 @@ sleep(void *chan, struct spinlock *lk)
     panic("sleep without lk");
 
   // Go to sleep.
-  if(proc->name[2] == 'e' && proc->pid > 4  && proc->pid < 55) 
+  if(!!!!!!!!!!0 && proc->name[2] == 'e' && proc->pid > 4  && proc->pid < 55) 
     cprintf("process w/ pid: %d going to sleep on %p \n", proc->pid,
         (uint) chan);
   pushcli();
@@ -529,16 +537,15 @@ int
 kill(int pid)
 {
   struct proc *p;
-
   //acquire(&ptable.lock);
   pushcli();
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if(p->pid == pid){
-      p->killed = 1;
+      cas(&p->killed, 0, 1);
       // Wake process from sleep if necessary.
       while(p->state == NEG_SLEEPING);
       if(p->state == SLEEPING)
-        p->state = RUNNABLE;
+        wakeup1((void *)p->chan);
       //release(&ptable.lock);
       popcli();
       return 0;
@@ -724,7 +731,7 @@ void edit_tf_for_sighandler(struct proc*, int, int);
 int handle_signals() {
   struct cstackframe* curr = 0;
   
-  if(proc != 0) {
+  if(proc != 0 && ((proc->tf->cs & 3) == 3)) {
     curr = (proc->in_handler == IN_HANDLER) ? EMPTY_STACK : pop(&proc->cstack);
     if(curr == EMPTY_STACK || proc->sig_handler == DEFAULT_HANDLER) {
       return 0;

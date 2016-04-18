@@ -4,6 +4,7 @@
 #define BUFFER_SIZE 32
 #define NOT_BUSY 0 
 #define db printf(1, "%d \n", __LINE__);
+#define stdin 0
 
 int isprime(int a) {
   int i = 2;
@@ -17,12 +18,11 @@ int isprime(int a) {
 void handler(int pid, int value) {
   if(value == 0) {
     printf(1, "worker %d, exit \n", getpid());
-    sigsend(pid, 0);
     exit();
   }
-  while (!isprime(value++));
+  while (!isprime(++value));
   sleep(100);
-  sigsend(pid, value - 1);
+  sigsend(pid, value);
 }
 
 int * workers;
@@ -32,9 +32,11 @@ int NUM_WORKERS;
 
 void primsrv(int pid, int value) {
   int i = NUM_WORKERS;
-  if (value == 0 ) { 
+  if (value == 0) { 
     while(i --> 0)
      sigsend(workers[i-1], 0); 
+    while(wait() > 0);
+
     printf(1, "primsrv exit \n");
     exit();
   }
@@ -103,6 +105,10 @@ void null_terminate(char * buff) {
 
 void find_worker(int* workers, int* busy_workers, int value) {
  int n = NUM_WORKERS - 1;
+ if(0 == value){
+   printf(1,"sending 0, \n");
+   sigsend(getpid(), 0);
+ } 
  while(n --> -1)
    if(busy_workers[n] == NOT_BUSY) {
      busy_workers[n] = value;
