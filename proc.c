@@ -457,9 +457,10 @@ sleep(void *chan, struct spinlock *lk)
     panic("sleep without lk");
 
   // Go to sleep.
-  if(proc->name[2] == 'e' && proc->pid > 10  && proc->pid < 55) 
+  if(proc->name[2] == 'e' && proc->pid > 4  && proc->pid < 55) 
     cprintf("process w/ pid: %d going to sleep on %p \n", proc->pid,
         (uint) chan);
+  pushcli();
   proc->chan = (int)chan;
   check_cas(RUNNING, NEG_SLEEPING);
   //proc->state = NEG_SLEEPING;
@@ -474,7 +475,7 @@ sleep(void *chan, struct spinlock *lk)
 //    acquire(&ptable.lock);  //DOC: sleeplock1
 //    release(lk);
 //  }
-  pushcli();
+
   release(lk);
 
   sched_check;
