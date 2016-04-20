@@ -15,13 +15,13 @@ int isprime(int a) {
   }
   return 1;
 }
+
 void handler(int pid, int value) {
   if(value == 0) {
-    printf(1, "worker %d, exit \n", getpid());
+    printf(1, "worker %d exit \n", getpid());
     exit();
   }
   while (!isprime(++value));
-  sleep(100);
   sigsend(pid, value);
 }
 
@@ -32,24 +32,18 @@ int NUM_WORKERS;
 
 void primsrv(int pid, int value) {
   int i = NUM_WORKERS;
-  if (value == 0) { 
-    while(i --> 0)
-     sigsend(workers[i-1], 0); 
-    while(wait() > 0);
-
-    printf(1, "primsrv exit \n");
-    exit();
-  }
-  while (i --> 0)
-    if(workers[i-1] == pid) { 
+  while (i --> 0) {
+    if(workers[i] == pid) { 
       break;
     }
-  printf(1, "worker %d returned %d for %d \n", pid, value, busy_workers[i-1]);
+  }
+  printf(1, "worker %d returned %d as a result for %d\n", pid, value, busy_workers[i]);
 
-  busy_workers[i-1] = NOT_BUSY;
+  busy_workers[i] = NOT_BUSY;
 }
 
 void find_worker(int *, int*, int);
+void sendZero(int *);
 void null_terminate(char*);
 
 int main(int argc, char** argv){
@@ -61,7 +55,7 @@ int main(int argc, char** argv){
   workers = malloc(sizeof(workers) * n); // pid table of workers;
   busy_workers = malloc(sizeof(busy_workers) * n);
 
-  while(n --> 0){
+  while(n --> 0) {
     pid = fork();
 
     if(pid == 0) { // child code
@@ -71,15 +65,15 @@ int main(int argc, char** argv){
       }
     }
     else {
-      workers[n-1] = pid;
-      busy_workers[n-1] = NOT_BUSY;
+      workers[n] = pid;
+      busy_workers[n] = NOT_BUSY;
     }
   }
   sigset(primsrv);
-  printf(1, "worker pids: \n");
+  printf(1, "workers pids:\n");
   n = NUM_WORKERS; 
   while (n --> 0)
-    printf(1, "%d \n", workers[n-1]);
+    printf(1, "%d\n", workers[n]);
 
   while(1) {
     printf(1, "please enter a number: ");
@@ -87,14 +81,16 @@ int main(int argc, char** argv){
     null_terminate(buffer);
     if(*buffer != 0) {
       n = atoi(buffer);
-      *buffer = 0;
-      find_worker(workers, busy_workers, n);
+      if(n != 0)
+        find_worker(workers, busy_workers, n);
+      else
+        sendZero(workers);
     }
   }
 
 }
 
-int isdigit(char d){
+int isdigit(char d) {
   return !(d < '0' || d > '9');
 }
 // assumes buff ends with \n
@@ -103,18 +99,24 @@ void null_terminate(char * buff) {
   *(buff-1) = 0;
 }
 
+void sendZero(int* workers) {
+  int n = NUM_WORKERS;
+  while(n --> 0) {
+    sigsend(workers[n], 0);
+  }
+  while(wait() != -1);
+  printf(1, "primesrv exit\n");
+  exit();
+}
+
 void find_worker(int* workers, int* busy_workers, int value) {
- int n = NUM_WORKERS - 1;
- if(0 == value){
-   printf(1,"sending 0, \n");
-   sigsend(getpid(), 0);
- } 
- while(n --> -1)
+ int n = NUM_WORKERS;
+ while(n --> 0) {
    if(busy_workers[n] == NOT_BUSY) {
      busy_workers[n] = value;
-     printf(1, "SENDING %d to %d \n", value, workers[n]);
      sigsend(workers[n], value);
      return;
    }
+ }
  printf(1, "no idle workers.\n"); 
 }

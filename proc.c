@@ -33,8 +33,7 @@ static char *sts[] = {
   [ZOMBIE]          "zombie",
   [NEG_ZOMBIE]      "neg_zombie",
   [NEG_RUNNABLE]    "neg_runnable",
-  [NEG_SLEEPING]    "neg sleeping",
-  [NEG_UNUSED]      "neg_unused"
+  [NEG_SLEEPING]    "neg sleeping"
   };
 struct {
 //  struct spinlock lock;
@@ -80,11 +79,12 @@ allocproc(void)
   struct cstackframe* cstack_iter;
   
   do {
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
       if(UNUSED == p->state) { // found an unused fellow.
         expected = UNUSED;
         break;
       }
+    }
     if(NPROC + ptable.proc == p) {
       return 0;
     }
@@ -151,7 +151,7 @@ userinit(void)
   p->cwd = namei("/");
 
   check_cas2(&p->state, EMBRYO, RUNNABLE);
-  p->state = RUNNABLE;
+  //p->state = RUNNABLE;
 }
 
 // Grow current process's memory by n bytes.
@@ -257,11 +257,11 @@ exit(void)
   wakeup1(proc->parent);
 
   // Pass abandoned children to init.
-  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
     if(p->parent == proc){
       p->parent = initproc;
-      while(p->state == NEG_ZOMBIE);
-      if(p->state == ZOMBIE /*|| p->state == NEG_ZOMBIE*/)
+      //while(p->state == NEG_ZOMBIE);
+      if(p->state == ZOMBIE || p->state == NEG_ZOMBIE)
         wakeup1(initproc);
     }
   }
@@ -294,8 +294,9 @@ wait(void)
         continue;
       havekids = 1;
 
-      if(cas(&p->state, ZOMBIE, NEG_UNUSED)){
+      if(p->state == ZOMBIE || p->state == NEG_ZOMBIE) {
         // Found one.
+        while(p->state == NEG_ZOMBIE);
         pid = p->pid;
         p->pid = 0;
         p->parent = 0;
@@ -303,7 +304,7 @@ wait(void)
         proc->chan = 0;
         //proc->state = RUNNING;
         check_cas(NEG_SLEEPING, RUNNING);
-        check_cas2(&p->state, NEG_UNUSED, UNUSED);
+        check_cas2(&p->state, ZOMBIE, UNUSED);
         //release(&ptable.lock);
         popcli();
         return pid;
@@ -312,7 +313,6 @@ wait(void)
 
     // No point waiting if we don't have any children.
     if(!havekids || proc->killed){
-      cprintf("no kids \n");
       proc->chan = 0;
       check_cas(NEG_SLEEPING, RUNNING);
       //proc->state = RUNNING;      
@@ -330,9 +330,7 @@ wait(void)
 void 
 freeproc(struct proc *p)
 {
-  if (!p ||
-      (p->state != ZOMBIE && p->state != UNUSED &&
-       p->state != NEG_ZOMBIE && p->state != NEG_UNUSED))
+  if (!p || p->state != NEG_ZOMBIE)
     panic("freeproc not zombie");
   kfree(p->kstack);
   p->kstack = 0;
@@ -376,20 +374,16 @@ scheduler(void)
       switchkvm();
       cas(&p->state, NEG_SLEEPING, SLEEPING);
       cas(&p->state, NEG_RUNNABLE, RUNNABLE);
-      cas(&p->state, NEG_UNUSED, UNUSED);
 
       // Process is done running for now.
       // It should have changed its p->state before coming back.
       proc = 0;
-      if(p->state == NEG_ZOMBIE) {
-          freeproc(p);
-          cas(&p->state, NEG_ZOMBIE, ZOMBIE);
-          if(p->parent)
-            wakeup1(p->parent);
-      }
 
-      if(p->state == NEG_UNUSED || p->state==UNUSED)
+      if(p->state == NEG_ZOMBIE) {
         freeproc(p);
+        cas(&p->state, NEG_ZOMBIE, ZOMBIE);
+        wakeup1(p->parent);
+      }
     }
     //release(&ptable.lock);
     popcli();
@@ -465,9 +459,11 @@ sleep(void *chan, struct spinlock *lk)
     panic("sleep without lk");
 
   // Go to sleep.
-  if(!!!!!!!!!!0 && proc->name[2] == 'e' && proc->pid > 4  && proc->pid < 55) 
+  if(0 && proc->name[2] == 'e' && proc->pid > 4  && proc->pid < 55) {
     cprintf("process w/ pid: %d going to sleep on %p \n", proc->pid,
         (uint) chan);
+  }
+
   pushcli();
   proc->chan = (int)chan;
   check_cas(RUNNING, NEG_SLEEPING);
@@ -509,6 +505,7 @@ wakeup1(void *chan)
     if(p->state != SLEEPING && p->chan == (int)chan) {
       while(p->state != SLEEPING);
     }
+    //p->state is sleeping!
     if(p->chan == (int)chan && cas(&p->state, SLEEPING, NEG_RUNNABLE)){
       //check_cas2(&p->state, SLEEPING, RUNNABLE);
       //p->state = RUNNABLE;
@@ -572,8 +569,7 @@ static char *states[] = {
   [ZOMBIE]          "zombie",
   [NEG_ZOMBIE]      "neg_zombie",
   [NEG_RUNNABLE]    "neg_runnable",
-  [NEG_SLEEPING]    "neg sleeping",
-  [NEG_UNUSED]      "neg_unused"
+  [NEG_SLEEPING]    "neg sleeping"
   };
   int i;
   struct proc *p;

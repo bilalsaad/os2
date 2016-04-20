@@ -800,7 +800,6 @@ concreate(void)
       wait();
     }
   }
-  printf(1, "finitio \n"); 
   memset(fa, 0, sizeof(fa));
   fd = open(".", 0);
   n = 0;
@@ -821,9 +820,7 @@ concreate(void)
       n++;
     }
   }
-  db;
   close(fd);
-  db;
   if(n != 40){
     printf(1, "concreate not enough files in directory listing\n");
     exit();
@@ -1387,7 +1384,7 @@ forktest(void)
   int n, pid;
 
   printf(1, "fork test\n");
-
+  db;
   for(n=0; n<1000; n++){
     pid = fork();
     if(pid < 0)
@@ -1395,24 +1392,24 @@ forktest(void)
     if(pid == 0)
       exit();
   }
-  
+  db;
   if(n == 1000){
     printf(1, "fork claimed to work 1000 times!\n");
     exit();
   }
-  
+  db;
   for(; n > 0; n--){
     if(wait() < 0){
       printf(1, "wait stopped early\n");
       exit();
     }
   }
-  
+  db;
   if(wait() != -1){
     printf(1, "wait got too many\n");
     exit();
   }
-  
+  db;
   printf(1, "fork test OK\n");
 }
 
@@ -1497,7 +1494,6 @@ sbrktest(void)
     printf(stdout, "sbrk downsize failed, a %x c %x\n", a, c);
     exit();
   }
- db; 
   // can we read the kernel's memory?
   for(a = (char*)(KERNBASE); a < (char*) (KERNBASE+2000000); a += 50000){
     ppid = getpid();
@@ -1513,7 +1509,6 @@ sbrktest(void)
     }
     wait();
   }
-db;
   // if we run the system out of memory, does it clean up the last
   // failed allocation?
   if(pipe(fds) != 0){
@@ -1534,17 +1529,12 @@ db;
   // if those failed allocations freed up the pages they did allocate,
   // we'll be able to allocate here
   c = sbrk(4096);
-  printf(1, "i --> %d \n", sizeof(pids)/sizeof(pids[0]));
   for(i = 0; i < sizeof(pids)/sizeof(pids[0]); i++){
     if(pids[i] == -1)
       continue;
-    printf(1,"iter %d \n", i);
     kill(pids[i]);
-    printf(1,"iter %d \n", i);
     wait();
-    printf(1,"iter %d \n", i);
   }
-  db;
   if(c == (char*)0xffffffff){
     printf(stdout, "failed sbrk leaked memory\n");
     exit();
@@ -1581,7 +1571,6 @@ validatetest(void)
   for(p = 0; p <= (uint)hi; p += 4096){
     if((pid = fork()) == 0){
       // try to crash the kernel by passing in a badly placed integer
-      db;
       validateint((int*)p);
       exit();
     }
@@ -1722,11 +1711,10 @@ main(int argc, char *argv[])
     printf(1, "already ran user tests -- rebuild fs.img\n");
     exit();
   }
-  if(argc > 1) {
-    sbrktest();
-    exit();
-  }
   close(open("usertests.ran", O_CREATE));
+
+  // forktest();
+  // exit();
 
   createdelete();
   linkunlink();
@@ -1738,7 +1726,7 @@ main(int argc, char *argv[])
   bigwrite();
   bigargtest();
   bsstest();
-//  sbrktest();
+  sbrktest();
   validatetest();
 
   opentest();

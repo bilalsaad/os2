@@ -104,8 +104,8 @@ enum procstate {
   ZOMBIE,
   NEG_ZOMBIE,
   NEG_SLEEPING,
-  NEG_RUNNABLE,
-  NEG_UNUSED};
+  NEG_RUNNABLE
+};
 #define DEFAULT_HANDLER (sig_handler) -1
 #define IN_HANDLER 1
 #define OUT_HANDLER 0
