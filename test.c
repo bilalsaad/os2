@@ -6,13 +6,16 @@ void concreate(void);
 void handler(int pid, int value) {
   printf(1, "I got a signal pid[%d], value[%d] \n", pid, value);
 }
+void forktest(void);
 int main(int argc, char** argv) {
   int i = 40;
   sigset(handler);
   int pid;
 
   if(argc == 1) {
-     concreate();
+    for(i = 0; i < 40 ; ++i)
+      forktest();
+    exit();
   }
     
 
@@ -129,8 +132,6 @@ concreate(void)
     else
       wait();
   }
-
-  printf(1, "concreate ok\n");
 }
   /*
      if(pid == 0){ // child code
@@ -147,3 +148,36 @@ concreate(void)
      sigpause();
      }
      } */
+
+void forktest(void){
+  int n, pid;
+
+  printf(1, "fork test\n");
+  for(n=0; n<1000; n++){
+    pid = fork();
+    if(pid < 0)
+      break;
+    if(pid == 0)
+      exit();
+  }
+  if(n == 1000){
+    printf(1, "fork claimed to work 1000 times!\n");
+    exit();
+  }
+  getpid();
+  for(; n > 0; n--){
+    if((pid = wait()) < 0){
+      printf(1, "wait stopped early\n");
+      exit();
+    }
+ }
+
+  db;
+  if(wait() != -1){
+    printf(1, "wait got too many\n");
+    exit();
+  }
+  printf(1, "fork test OK\n");
+
+}
+

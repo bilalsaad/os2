@@ -77,7 +77,7 @@ int main(int argc, char** argv){
 
   while(1) {
     printf(1, "please enter a number: ");
-    gets(buffer, BUFFER_SIZE);
+    read(0, buffer, BUFFER_SIZE);
     null_terminate(buffer);
     if(*buffer != 0) {
       n = atoi(buffer);
@@ -110,13 +110,13 @@ void sendZero(int* workers) {
 }
 
 void find_worker(int* workers, int* busy_workers, int value) {
- int n = NUM_WORKERS;
- while(n --> 0) {
-   if(busy_workers[n] == NOT_BUSY) {
-     busy_workers[n] = value;
-     sigsend(workers[n], value);
-     return;
-   }
- }
- printf(1, "no idle workers.\n"); 
+  int n = NUM_WORKERS;
+  while(n --> 0) {
+    if(busy_workers[n] == NOT_BUSY) {
+      busy_workers[n] = value;
+      sigsend(workers[n], value);
+      return;
+    }
+  }
+  printf(1, "no idle workers.\n"); 
 }

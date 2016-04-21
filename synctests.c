@@ -416,8 +416,16 @@ main(int argc, char *argv[])
 {
   int  i;
   printf(1, "synctests starting\n");
+  if (argc > 1) {
+     for(i = 0 ; i < 100; ++i)
+       preempt();
+     printf(1, "finished preemt \n");
+     for (i = 0; i < 30; ++i)
+       forktest();
 
-//  sbrktest();
+     exit();
+  }
+  sbrktest();
 
   for (i = 0; i < 5 ; i++)
     validatetest();

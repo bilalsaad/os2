@@ -260,7 +260,7 @@ exit(void)
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
     if(p->parent == proc){
       p->parent = initproc;
-      //while(p->state == NEG_ZOMBIE);
+      while(p->state == NEG_ZOMBIE);
       if(p->state == ZOMBIE || p->state == NEG_ZOMBIE)
         wakeup1(initproc);
     }
@@ -294,9 +294,11 @@ wait(void)
         continue;
       havekids = 1;
 
-      if(p->state == ZOMBIE || p->state == NEG_ZOMBIE) {
+      if(p->state == ZOMBIE) {
         // Found one.
-        while(p->state == NEG_ZOMBIE);
+        while(0 && p->state == NEG_ZOMBIE) {
+          cprintf("waiting on %d \n", p->pid);
+        }
         pid = p->pid;
         p->pid = 0;
         p->parent = 0;
@@ -443,7 +445,6 @@ forkret(void)
     first = 0;
     initlog();
   }
-  
   // Return to "caller", actually trapret (see allocproc).
 }
 
@@ -502,9 +503,10 @@ wakeup1(void *chan)
 {
   struct proc *p;
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
-    if(p->state != SLEEPING && p->chan == (int)chan) {
-      while(p->state != SLEEPING);
-    }
+//    if(p->state != SLEEPING && p->chan == (int)chan) {
+//     while(p->state != SLEEPING);
+//    }
+    while(p->state == NEG_SLEEPING && p->chan == (int)chan);
     //p->state is sleeping!
     if(p->chan == (int)chan && cas(&p->state, SLEEPING, NEG_RUNNABLE)){
       //check_cas2(&p->state, SLEEPING, RUNNABLE);
