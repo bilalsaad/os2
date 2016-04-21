@@ -1,7 +1,7 @@
 #include "types.h"
 // Segments in proc->gdt.
 #define NSEGS     7
-
+struct trapframe;
 // Per-CPU state
 struct cpu {
   uchar id;                    // Local APIC ID; index into cpus[] below
@@ -131,6 +131,7 @@ struct proc {
                                // signal handler.
   int in_handler;              // If non-zero, handling a signal.
   int paused;                  // If non-zero, in sigpaused.     
+  struct trapframe backuptf;
 };
 
 // Process memory is laid out contiguously, low addresses first:

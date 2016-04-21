@@ -10,6 +10,7 @@ struct rtcdate;
 struct spinlock;
 struct stat;
 struct superblock;
+struct trapframe;
 
 // bio.c
 void            binit(void);

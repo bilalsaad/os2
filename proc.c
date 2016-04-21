@@ -705,7 +705,8 @@ int sigpause() {
 // Here we must restore the previous cpu state after the sig handler..
 void sigret() {
   // restore the backed up cpu_state.
-  proc->tf->edi = proc->cpu_state.edi;
+  *proc->tf = proc->backuptf;
+  /*proc->tf->edi = proc->cpu_state.edi;
   proc->tf->esi = proc->cpu_state.esi;
   proc->tf->ebp = proc->cpu_state.ebp;
   proc->tf->ebx = proc->cpu_state.ebx;
@@ -713,7 +714,7 @@ void sigret() {
   proc->tf->ecx = proc->cpu_state.ecx;
   proc->tf->eax = proc->cpu_state.eax;
   proc->tf->eip = proc->cpu_state.eip;
-  proc->tf->esp = proc->cpu_state.esp;
+  proc->tf->esp = proc->cpu_state.esp;*/
   proc->in_handler = OUT_HANDLER;
 }
 
@@ -747,7 +748,8 @@ int handle_signals() {
 
 void backup_proc_tf(struct proc* p) {
   proc->in_handler = IN_HANDLER;
-  p->cpu_state.edi = p->tf->edi;
+  proc->backuptf = *proc->tf;
+/*  p->cpu_state.edi = p->tf->edi;
   p->cpu_state.esi = p->tf->esi;
   p->cpu_state.ebp = p->tf->ebp;
   p->cpu_state.ebx = p->tf->ebx;
@@ -756,6 +758,7 @@ void backup_proc_tf(struct proc* p) {
   p->cpu_state.eax = p->tf->eax;
   p->cpu_state.eip = p->tf->eip;
   p->cpu_state.esp = p->tf->esp;
+  */
 }
 
 extern void sigret_label_start(void);
